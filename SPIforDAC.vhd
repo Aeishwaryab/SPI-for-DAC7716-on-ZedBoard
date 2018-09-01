@@ -1,12 +1,12 @@
 ----------------------------------------------------------------------------------
--- Company: 
--- Engineer: 
+-- Company: Technical University of Munich
+-- Engineer: Aeishwarya Baviskar
 -- 
 -- Create Date: 22.06.2018 13:20:08
 -- Design Name: 
 -- Module Name: CsnClk - GenCSn
--- Project Name: 
--- Target Devices: 
+-- Project Name: Project Course on Power Electronics and Drive Systems
+-- Target Devices: ZedBoard
 -- Tool Versions: 
 -- Description: 
 -- 
@@ -38,7 +38,11 @@ entity CsnClk is
            LatchN : out STD_LOGIC := '1';
            Dout : out STD_LOGIC; 
            Rstn: in STD_LOGIC := '0';
-           RstSPI: out STD_LOGIC);
+           RstSPI: out STD_LOGIC;
+           Din0: in STD_LOGIC_VECTOR(11 downto 0);
+           Din1: in STD_LOGIC_VECTOR(11 downto 0);
+           Din2: in STD_LOGIC_VECTOR(11 downto 0);
+           Din3: in STD_LOGIC_VECTOR(11 downto 0)););
 end CsnClk;
 
 architecture GenCSn of CsnClk is
@@ -57,55 +61,18 @@ shared variable CSnLowFlag : INTEGER := 0;
 --signal count_bit2 :integer :=0;
 begin
 
-addrs(0)<="0101";
+addrs(0)<="0100";
 addrs(1)<="0101";
-addrs(2)<="0101";  -- original 0100
-addrs(3)<="0101";
---addrs(1)<="0101";
---addrs(2)<="0110";
---addrs(3)<="0111";
+addrs(2)<="0110";  
+addrs(3)<="0111";
 
---Din(0) <= "000001010001";
---Din(1) <= "000001100100";
---Din(2) <= "000001110111";
---Din(3) <= "000010000111";
---Din(4) <= "000010010010";
---Din(5) <= "000010010110";
---Din(6) <= "000010010010";
---Din(7) <= "000010000111";
---Din(8) <= "000001110111";
---Din(9) <= "000001100100";
---Din(10) <="000001010001";
---Din(11) <="000001000001";
---Din(12) <="000000110110";
---Din(13) <="000000110010";
---Din(14) <="000000110110";
---Din(15) <="000001000001";
---Din(16) <="000001010001";
-Din(0) <= "111111111111";
-Din(1) <= "011111111111";
-Din(2) <= "001111111111";
-Din(3) <= "000111111111";
-Din(4) <= "000011111111";
-Din(5) <= "000111111111";
-Din(6) <= "001111111111";
-Din(7) <= "011111111111";
-Din(8) <= "000011111111";
-Din(9) <= "000001111111";
-Din(10) <="000000111111";
-Din(11) <="000000011111";
-Din(12) <="000000111111";
-Din(13) <="000001111111";
-Din(14) <="000011111111";
-Din(15) <="000111111111";
-Din(16) <="001111111111";
 Clkop<=Clkop_sig;
 CSn <= Csn_sig;
 LatchN<= LatchN_sig;
 Dout <= Do_sig;
 RstSPI<= Rstn;
---D2trns(23) <= '0';  -- write bit 
 
+-- Clock Division by 4
 GenClock: process(ClkIp)
     constant div_by : integer := 4;
     variable count_clk : integer:= 0;
@@ -120,33 +87,32 @@ begin
 --        end loop;
      end if;
 end process;
-
+         --------------------
+-- Generate Chip select
 SwitchCSn : process(Clkop_sig)
-    constant bit24 : integer :=25;   -- trial!!!!!!!!!!!!!!!!!!!!!!!!! 24 original
+    constant bit24 : integer :=25;
     variable count_bit : integer:= 0;
     variable Csn_flag : integer :=0;
 begin
     if (Clkop_sig'event AND Clkop_sig = '1') then
---        for i in 1 to div_by loop
+
             if Csn_flag = 1 then
                 Csn_sig<= '0';
                 CSnLowFlag := 1;
-                -- LATCH and CSN EQUAL
-                --LatchN_sig<= '0';
+                
             end if;
             if count_bit = bit24 then
                 Csn_sig <= '1' ;
                 CSnLowFlag:= 0;
-                -- LATCH AND CSN EQUAL
-                --LatchN_sig <= '0' ;
                 count_bit := 0;
                 Csn_flag := 1;
             end if;
              count_bit := count_bit+1;
---        end loop;
      end if;
 end process;
 
+         -----------------------
+         -- Generate Latch Signal
 GenLATCH : process(Clkop_sig)
     constant RegNo : integer :=1;
     constant bit24 : integer :=25;
@@ -154,46 +120,45 @@ GenLATCH : process(Clkop_sig)
     variable LatchN_flag : integer :=0;
 begin
     if (Clkop_sig'event AND Clkop_sig = '0') then
---        for i in 1 to div_by loop
-            
             if LatchN_flag = 1 then
                 LatchN_sig<= '1';
-                -- Latch Tied low
-                --LatchN_sig<= '0';
             end if;
             if count_reg = RegNo*bit24 then
                 LatchN_sig <= '0' ;
                 count_reg := 0;
                 LatchN_flag := 1;
             end if;
---        end loop;
             count_reg := count_reg+1;
      end if;
 end process;
 
+         -----------------------
+         -- Update Data to transfer
 updateD2Trns: process(Csn_sig)
     constant ChannelNo : integer := 4;
-    constant DataStrLen : integer:=16;
+    
     variable count_channel : integer := 0;
-    variable count_datastr: integer:= 0;
+
 begin
     if (Csn_sig'event AND Csn_sig = '1' ) then
---        for i in 1 to div_by loop
             D2trns(20 downto 17) <= addrs(count_channel);
-            D2trns(16 downto 5) <= Din(count_datastr);
+            if count_channel = 0 then
+                D2trns(16 downto 5) <= Din0;    
+            elsif count_channel = 1 then
+                D2trns(16 downto 5) <= Din1;
+            elsif count_channel = 2 then
+                D2trns(16 downto 5) <= Din2;
+            elsif count_channel = 3 then
+                D2trns(16 downto 5) <= Din3;
+            end if; 
             count_channel := count_channel+1;
-            count_datastr := count_datastr +1;
             if count_channel = ChannelNo then
                 count_channel := 0;
             end if;
-            if count_datastr = DataStrLen then
-                count_datastr:= 0;
-            end if;
-            
---        end loop;
      end if;
 end process; 
-
+--------------------------------
+         -- Sending Data through Serial Port
 DataOut: process (Clkop_sig)
     constant data_length : integer :=23; 
     variable count_bit : integer :=0;
